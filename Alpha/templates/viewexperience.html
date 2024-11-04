@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View User Experiences</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f7f7;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .experience-item {
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background-color: #fafafa;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            text-decoration: none;
+            color: #007bff;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-eye"></i> User Experiences</h1>
+        <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Go Back</a>
+
+
+        <div class="experience-list">
+            {% if experience_list %}
+                {% for experience in experience_list %}
+                    <div class="experience-item">
+                        <h4>{{ experience.split(',')[0] }}</h4>  <!-- Display the name -->
+                        <p><strong>Experience:</strong></p>
+                        <p>{{ experience.split(',', 1)[1].strip() }}</p>  <!-- Display the full experience -->
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No experiences available.</p>
+            {% endif %}
+        </div>
+        
+        
+        
+    </div>
+</body>
+</html>

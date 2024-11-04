@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spam Detection Result</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .result {
+            font-size: 18px;
+            text-align: center;
+            margin-top: 20px;
+            color: #333;
+        }
+        .safe {
+            color: green;
+        }
+        .spam {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Spam Detection Result</h1>
+        <div class="result {{ 'safe' if label == 1 else 'spam' }}">
+            {% if label == 1 %}
+                <p>Message: "{{ message }}" is a safe message.</p>
+            {% else %}
+                <p>Message: "{{ message }}" is a spam message!</p>
+            {% endif %}
+        </div>
+        <a href="/">Back to Home</a>
+    </div>
+</body>
+</html>
