@@ -1,0 +1,312 @@
+ #Path to the experience file
+'''EXPERIENCE_FILE = 'experience.txt'
+
+# Function to load experiences from the file
+def load_experiences():
+    if os.path.exists(EXPERIENCE_FILE):
+        with open(EXPERIENCE_FILE, 'r') as f:
+            return [line.strip() for line in f.readlines()]
+    return []'''
+'''@app.route('/experience', methods=['GET', 'POST'])
+def experience():
+    if request.method == 'POST':
+        name = request.form['name']
+        experience_text = request.form['experience']
+
+        # Save experience to a text file
+        with open(EXPERIENCE_FILE, 'a') as f:
+            f.write(f'Name: {name}, Experience: {experience_text}\n')
+
+        return redirect(url_for('experience'))
+
+    experience_list = load_experiences()
+    return render_template('experience.html', experience_list=experience_list)
+
+@app.route('/viewexperience')
+def view_experience():
+    experience_list = load_experiences()
+    return render_template('viewexperience.html', experience_list=experience_list)'''
+
+
+import numpy as np
+import pandas as pd
+from flask import Flask, request, jsonify, render_template, redirect, url_for
+import pickle
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+import inputScript
+#import os
+from socialmedia import social  # Import the social function
+import sqlite3
+
+# Load models and vectorizer
+model1 = pickle.load(open('phishing.pkl', 'rb'))  # Phishing detection model
+model2 = pickle.load(open('mail.pkl', 'rb'))       # Email spam detection 
+
+# api_key
+api_key = "AIzaSyDuyr0kocEYAJjgwj8xPT07VLh8vpzExc4"
+
+# Load and preprocess email data for feature extraction
+raw_mail = pd.read_csv("fraud_email_.csv")
+mail_data = raw_mail.where((pd.notnull(raw_mail)), '')
+mail_data.loc[mail_data['Class'] == 'spam', 'Category'] = 0
+mail_data.loc[mail_data['Class'] == 'ham', 'Category'] = 1
+
+X = mail_data['Text']
+Y = mail_data['Class']
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=3)
+
+feature_extraction = TfidfVectorizer(min_df=1, stop_words='english', lowercase=True)
+feature_extraction.fit(X_train)
+
+app = Flask(__name__, template_folder='templates')
+
+
+
+@app.route('/')
+def index():
+    return render_template('home.html')
+
+@app.route('/home')
+def home():
+    return render_template('index.html')
+
+
+#database code
+def init_db():
+    conn = sqlite3.connect('database.db')  # Connect to SQLite database (or create it)
+    cursor = conn.cursor()
+    # Create a table to store user experiences
+    cursor.execute('''CREATE TABLE IF NOT EXISTS experiences (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT NOT NULL,
+                        userstory TEXT NOT NULL
+                     )''')
+    conn.commit()  # Save the changes
+    conn.close()   # Close the connection
+
+# Call init_db() when the application starts to set up the database
+init_db()
+
+# Route to display the form for submitting experiences
+@app.route('/experience')
+def experience_form():
+    return render_template('experience.html')
+
+# Route to handle the form submission
+@app.route('/submit_experience', methods=['POST'])
+def submit_experience():
+    username = request.form['username']  # Get the username from the form
+    userstory = request.form['userstory']  # Get the user story from the form
+    
+    # Connect to the database and insert the new experience
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO experiences (username, userstory) VALUES (?, ?)", (username, userstory))
+    conn.commit()  # Save the new entry to the database
+    conn.close()   # Close the connection
+    
+    # Redirect the user to the view page to see all experiences
+    return redirect(url_for('view_experiences'))
+
+# Route to display all submitted experiences
+@app.route('/viewexperience')
+def view_experiences():
+    # Connect to the database and fetch all experiences
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT username, userstory FROM experiences")
+    experiences = cursor.fetchall()  # Get all records as a list of tuples
+    conn.close()
+    
+    # Render the viewexperience.html page with the fetched experiences
+    return render_template('viewexperience.html', experiences=experiences)
+
+
+#url phishing preediction
+
+@app.route('/predict', methods=['GET', 'POST'])
+def predict_phishing():
+    if request.method == 'POST':
+        url = request.form.get('URL')
+        if not url:
+            return render_template('predict.html', prediction="Error: URL is required")
+        
+        # Call the social function
+        social_result = social(api_key, url)
+        
+        try:
+            checkprediction = inputScript.Phishing_Website_Detection(url)
+            checkprediction = np.array(checkprediction).reshape(1, -1)
+            prediction = model1.predict(checkprediction)
+            output = prediction[0]
+            
+            if output == 1:
+                pred = "Safe! This is a Legitimate Website."
+            else:
+                pred = "Suspicious. Be cautious!"
+
+            # Handle the result from the social function
+            if "safe" in social_result:
+                social_status = social_result  # Contains safety status
+            else:
+                social_status = social_result  # Contains social media link status
+
+            return render_template('predict.html', prediction=pred, social_status=social_status, url="The URL is: " + url)
+        
+        except ValueError as e:
+            return render_template('predict.html', prediction="Please enter a full URL, including the path (e.g., https://example.com/path).") if "features" in str(e) else print(f"An error occurred: {e}")
+        except Exception as e:
+            return render_template('predict.html', prediction='An error occurred: {}'.format(e), url="The URL is: " + url)
+    else:
+        return render_template('predict.html', prediction='Error: Invalid request method')
+
+#msg phishing prediction
+@app.route('/sendd', methods=['POST'])
+def predict_email():
+    a = request.form.get('mail_check')
+    c = request.form.get('out_type')
+
+    if not a:
+        return "Enter some value of mail"
+    if c is None:
+        return "Select the output type"
+
+    input_mail = [a]
+    input_mail = feature_extraction.transform(input_mail)
+    result = model2.predict(input_mail)
+
+    if c == "Json_format":
+        status = "Warning! It's a spam message." if result[0] == 0 else "It's a safe message."
+        return jsonify({"Message": a, "Ans_format": c, "Status": status})
+
+    return render_template('predict1.html', label=result[0], message=a)
+
+@app.route('/predict_api', methods=['POST'])
+def predict_api():
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            raise ValueError("Invalid JSON data")
+        input_array = np.array(list(data.values()))
+        input_array = input_array.reshape(1, -1)
+        prediction = model1.predict(input_array)
+        output = prediction[0]
+        return jsonify({'output': output})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
+#css of home.html
+
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        header {
+            background: #0077cc;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        nav ul {
+            list-style: none;
+            padding: 0;
+        }
+        nav ul li {
+            display: inline;
+            margin: 0 15px;
+        }
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            transition: color 0.3s;
+        }
+        nav ul li a:hover {
+            color: #e1f5fe;
+        }
+        main {
+            padding: 20px;
+            max-width: 1200px;
+            margin: auto;
+        }
+        section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #0077cc;
+            border-bottom: 2px solid #0077cc;
+            padding-bottom: 10px;
+        }
+        .walkthrough {
+            background: #f4f4f4;
+            border-left: 5px solid #0077cc;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .video-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        iframe {
+            width: 100%;
+            height: 315px;
+            border: none;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .button {
+            background-color: #0077cc;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px;
+            transition: background-color 0.3s;
+            flex: 1; /* Make buttons responsive */
+            max-width: 200px; /* Optional: limit button width */
+        }
+        .button:hover {
+            background-color: #005fa3;
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            background: #0077cc;
+            color: white;
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .motivational-section {
+            background-color: #e1f5fe;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
